@@ -29,6 +29,9 @@ iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
+# Create a new chain
+iptables -N droplist
+
 {% if firewall_flush_rules_and_chains %}
 # Remove all rules and chains.
 iptables -t nat -F
@@ -60,6 +63,13 @@ iptables -A INPUT -p tcp -m tcp --dport {{ port }} -j ACCEPT
 iptables -A INPUT -p udp -m udp --dport {{ port }} -j ACCEPT
 {% endfor %}
 
+# Whitelist IP Address.
+{# Add a rule for each whitelisted ip #}
+{% for ip in firewall_allowed_ip %}
+iptables -A INPUT -s {{ ip }} -j ACCEPT
+{% endfor %}
+
+
 # Accept icmp ping requests.
 iptables -A INPUT -p icmp -j ACCEPT
 
@@ -72,6 +82,29 @@ iptables -A INPUT -p udp --sport 123 -j ACCEPT
 {{ rule }}
 {% endfor %}
 
+# Whitelist IP Address.
+{# Add a rule for each whitelisted ip #}
+{% if firewall_block_bad_ssh_logins %}
+# Block SSH Failed IPs
+SSH_FAILED_IP_FILE='{{firewall_block_bad_ssh_file:-/opt/bad_ssh_logins.txt}}'
+touch ${SSH_FAILED_IP_FILE}
+lastb|grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b"|sort |uniq -c |sort -rn|awk '$1 > {{firewall_block_bad_ssh_attempts|default('5')}}'|awk '{print $2}'|
+while read -r fail_count ip ; do
+    CHECK_IP=$(grep "$ip" ${SSH_FAILED_IP_FILE})
+    [[ ! -z ${CHECK_IP} ]]|| echo "$ip" >> ${SSH_FAILED_IP_FILE}
+done
+{% endif %}
+
+for iplist in {{firewall_block_bad_ssh_file:-/opt/bad_ssh_logins.txt}} {% for filepath in ip_file_path %}{{ filepath }} {% endfor %}; do
+  if [[ -f ${iplist} && -s ${iplist} ]]; then
+    grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" ${iplist} | while read -r ip ; do
+      # Append everything to droplist
+      iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j LOG --log-prefix " Bad IP Dropped by firewall: "
+      iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j DROP
+    done
+  fi
+done
+
 # Allow established connections:
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
@@ -82,6 +115,11 @@ iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 # Log other incoming requests (all of which are dropped) at 15/minute max.
 iptables -A INPUT -m limit --limit 15/minute -j LOG --log-level 7 --log-prefix "Dropped by firewall: "
 {% endif %}
+
+# Finally, insert or append our black list
+iptables -I INPUT -j droplist
+iptables -I OUTPUT -j droplist
+iptables -I FORWARD -j droplist
 
 # Drop all other traffic.
 iptables -A INPUT -j DROP
