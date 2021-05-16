@@ -38,7 +38,11 @@ iptables -X
 {% endif %}
 
 # Whitelist IP Address.
-WHITELIST_IP=( {% for wip in firewall_allowed_ip %}{{ wip }} {% endfor %})
+{% if firewall_allowed_list %}
+GSHEET='{{firewall_allowed_list}}'
+WH_GSHEET=$(curl -sL -m '6'  "${GSHEET}"|grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b"|tr '\n' ' ')
+{% endif %}
+WHITELIST_IP=( {% for wip in firewall_allowed_ip %}{{ wip }} {% endfor %} ${WH_GSHEET} )
 
 # Create a new chain
 iptables -N droplist
