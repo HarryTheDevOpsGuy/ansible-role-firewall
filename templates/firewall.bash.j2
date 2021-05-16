@@ -89,9 +89,9 @@ iptables -A INPUT -p udp --sport 123 -j ACCEPT
 SSH_FAILED_IP_FILE='{{firewall_block_bad_ssh_file|default('/opt/bad_ssh_logins.txt')}}'
 touch ${SSH_FAILED_IP_FILE}
 lastb|grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b"|sort |uniq -c |sort -rn|awk '$1 > {{firewall_block_bad_ssh_attempts|default('5')}}'|awk '{print $2}'|
-while read -r fail_count ip ; do
+while read -r ip ; do
     CHECK_IP=$(grep "$ip" ${SSH_FAILED_IP_FILE})
-    [[ -z ${CHECK_IP} ]]|| echo "$ip" >> ${SSH_FAILED_IP_FILE}
+    [[ ! -z ${CHECK_IP} ]]|| echo "$ip" >> ${SSH_FAILED_IP_FILE}
 done
 {% endif %}
 
