@@ -23,6 +23,6 @@ firewall_disable_firewalld: false
 firewall_disable_ufw: false
 
 firewall_allowed_ip: []
-firewall_block_bad_ssh_logins: true
+firewall_block_bad_ssh_logins: false
 firewall_block_bad_ssh_attempts: 5
 firewall_block_bad_ssh_file: '/opt/bad_ssh_logins.txt'

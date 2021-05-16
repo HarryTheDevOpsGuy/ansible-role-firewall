@@ -29,9 +29,6 @@ iptables -P INPUT ACCEPT
 iptables -P FORWARD ACCEPT
 iptables -P OUTPUT ACCEPT
 
-# Create a new chain
-iptables -N droplist
-
 {% if firewall_flush_rules_and_chains %}
 # Remove all rules and chains.
 iptables -t nat -F
@@ -39,6 +36,9 @@ iptables -t mangle -F
 iptables -F
 iptables -X
 {% endif %}
+
+# Create a new chain
+iptables -N droplist
 
 # Accept traffic from loopback interface (localhost).
 iptables -A INPUT -i lo -j ACCEPT
