@@ -37,6 +37,9 @@ iptables -F
 iptables -X
 {% endif %}
 
+# Whitelist IP Address.
+WHITELIST_IP=( {% for wip in firewall_allowed_ip %}{{ wip }} {% endfor %})
+
 # Create a new chain
 iptables -N droplist
 
@@ -63,13 +66,6 @@ iptables -A INPUT -p tcp -m tcp --dport {{ port }} -j ACCEPT
 iptables -A INPUT -p udp -m udp --dport {{ port }} -j ACCEPT
 {% endfor %}
 
-# Whitelist IP Address.
-{# Add a rule for each whitelisted ip #}
-{% for ip in firewall_allowed_ip %}
-iptables -A INPUT -s {{ ip }} -j ACCEPT
-{% endfor %}
-
-
 # Accept icmp ping requests.
 iptables -A INPUT -p icmp -j ACCEPT
 
@@ -82,8 +78,8 @@ iptables -A INPUT -p udp --sport 123 -j ACCEPT
 {{ rule }}
 {% endfor %}
 
-# Whitelist IP Address.
-{# Add a rule for each whitelisted ip #}
+# Block Bad Users and bots.
+{# Add a Block Bad Users and bots #}
 {% if firewall_block_bad_ssh_logins %}
 # Block SSH Failed IPs
 SSH_FAILED_IP_FILE='{{firewall_block_bad_ssh_file|default('/opt/bad_ssh_logins.txt')}}'
@@ -98,9 +94,12 @@ done
 for iplist in {{firewall_block_bad_ssh_file|default('/opt/bad_ssh_logins.txt')}} {% for filepath in ip_file_path %}{{ filepath }} {% endfor %}; do
   if [[ -f ${iplist} && -s ${iplist} ]]; then
     grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" ${iplist} | while read -r ip ; do
-      # Append everything to droplist
-      iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j LOG --log-prefix " Bad IP Dropped by firewall: "
-      iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j DROP
+      WHITE=$( for wip in ${WHITELIST_IP[@]}; do echo "${wip}"; done| grep -x ${ip} )
+      if [[ -z ${WHITE} ]]; then
+        # Append everything to droplist
+        #iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j LOG --log-prefix " Bad IP Dropped by firewall: "
+        iptables -A droplist -s $ip -p tcp -m multiport ! --dports 64342 -j DROP
+      fi
     done
   fi
 done
